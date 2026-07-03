@@ -1,3 +1,4 @@
+https://download.pytorch.org/whl/cpu/torch-2.2.0%2Bcpu-cp312-cp312-linux_x86_64.whl
 librosa
 pydub==0.25.1
 wavmark==0.0.3
@@ -14,5 +15,4 @@ jieba==0.42.1
 gradio
 langid==1.1.6
 requests
-torchaudio
 python-multipart
