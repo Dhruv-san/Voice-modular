@@ -1,0 +1,7 @@
+checkpoints/
+checkpoints_v2/
+outputs/
+processed/
+*.ipynb
+resources/*.png
+resources/*.jpg
