@@ -7,7 +7,10 @@ import base64
 from glob import glob
 import numpy as np
 from pydub import AudioSegment
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+except ImportError:
+    WhisperModel = None
 import hashlib
 import base64
 import librosa
@@ -18,6 +21,8 @@ model_size = "medium"
 model = None
 def split_audio_whisper(audio_path, audio_name, target_dir='processed'):
     global model
+    if WhisperModel is None:
+        raise ImportError("faster-whisper is not installed. Please install it to use split_audio_whisper.")
     if model is None:
         model = WhisperModel(model_size, device="cuda", compute_type="float16")
     audio = AudioSegment.from_file(audio_path)
