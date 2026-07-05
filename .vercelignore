@@ -1,0 +1,15 @@
+checkpoints/
+checkpoints_v2/
+outputs/
+processed/
+*.ipynb
+resources/*.png
+resources/*.jpg
+resources/*.mp3
+docs/
+LICENSE
+README.md
+setup.py
+.git/
+__pycache__/
+*.pyc
