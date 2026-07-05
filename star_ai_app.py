@@ -14,9 +14,8 @@ parser.add_argument("--share", action='store_true', default=False, help="make li
 args, unknown = parser.parse_known_args()
 
 # Constants and Paths
-# On Vercel, we should use /tmp for large downloads and processed files
-IS_VERCEL = "VERCEL" in os.environ
-BASE_DIR = "/tmp/star_ai" if IS_VERCEL else os.getcwd()
+# Render provides a persistent disk if configured, but for now we use local storage
+BASE_DIR = os.getcwd()
 CHECKPOINT_DIR = os.path.join(BASE_DIR, 'checkpoints')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'outputs')
 PROCESSED_DIR = os.path.join(BASE_DIR, 'processed')
@@ -46,12 +45,13 @@ def download_checkpoints():
     url = "https://myshell-public-repo-host.s3.amazonaws.com/openvoice/checkpoints_1226.zip"
     r = requests.get(url, stream=True)
     zip_path = os.path.join(BASE_DIR, "checkpoints.zip")
-    os.makedirs(BASE_DIR, exist_ok=True)
 
     with open(zip_path, 'wb') as f:
-        for chunk in r.iter_content(chunk_size=128):
-            f.write(chunk)
+        for chunk in r.iter_content(chunk_size=1024*1024):
+            if chunk:
+                f.write(chunk)
 
+    print("Extracting checkpoints...")
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(BASE_DIR)
 
@@ -80,19 +80,14 @@ def load_models():
         print(f"Error loading models: {e}")
         return False
 
-# Lazy loading for Vercel start-up performance
-models_loaded = False
+# Load models on startup for Render
+print("Initializing Star AI...")
+if not load_models():
+    print("Warning: Initial model load failed.")
 
 supported_languages = ['zh', 'en']
 
 def predict(prompt, style, audio_file_pth, agree):
-    global models_loaded
-    if not models_loaded:
-        if load_models():
-            models_loaded = True
-        else:
-            return "[ERROR] Models could not be loaded. Check logs.", None, None
-
     text_hint = ''
     if not agree:
         text_hint += '[ERROR] Please accept the Terms & Condition!\n'
@@ -138,7 +133,6 @@ def predict(prompt, style, audio_file_pth, agree):
         return text_hint, None, None
 
     try:
-        # Use our /tmp processed dir
         target_se, _ = se_extractor.get_se(audio_file_pth, tone_color_converter, target_dir=PROCESSED_DIR, vad=True)
     except Exception as e:
         error_msg = f"Get target tone color error: {e}"
@@ -165,10 +159,9 @@ def predict(prompt, style, audio_file_pth, agree):
 
 css = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
-
 body { background-color: #ffffff; font-family: 'Inter', sans-serif; color: #000000; }
 .gradio-container { max-width: 800px !important; margin: auto; padding: 20px; border: none !important; box-shadow: none !important; }
-#star-header { text-align: center; padding: 60px 20px; background: #ffffff; color: #000080; border-radius: 0; margin-bottom: 20px; border-bottom: 1px solid #eeeeee; animation: fadeInDown 1.5s cubic-bezier(0.22, 1, 0.36, 1); }
+#star-header { text-align: center; padding: 80px 20px; background: #ffffff; color: #000080; border-radius: 0; margin-bottom: 20px; border-bottom: 1px solid #eeeeee; animation: fadeInDown 1.5s cubic-bezier(0.22, 1, 0.36, 1); }
 #star-header h1 { font-weight: 600; letter-spacing: 12px; margin: 0; font-size: 4em; text-transform: uppercase; color: #000000; }
 #star-header p { font-weight: 300; opacity: 0.6; font-size: 1em; margin-top: 15px; letter-spacing: 2px; }
 @keyframes fadeInDown { from { opacity: 0; transform: translateY(-40px); } to { opacity: 1; transform: translateY(0); } }
@@ -228,4 +221,6 @@ with gr.Blocks(css=css, title="STAR AI") as demo:
     generate_btn.click(fn=predict, inputs=[input_text, style, ref_audio, tos], outputs=[info_output, audio_output, ref_audio_used])
 
 if __name__ == "__main__":
-    demo.queue().launch(share=args.share)
+    # Render provides PORT env var
+    port = int(os.environ.get("PORT", 7860))
+    demo.queue().launch(server_name="0.0.0.0", server_port=port, share=False)
